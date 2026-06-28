@@ -12,7 +12,7 @@ import {
 } from "@/lib/constants";
 
 function fitOptionToQuizOption(o: FitOption): QuizOption {
-  return { id: o.id, label: o.label, value: o.value };
+  return { id: o.id, label: o.label, value: o.value, description: o.description };
 }
 
 /**

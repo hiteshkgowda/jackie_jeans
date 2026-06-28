@@ -53,12 +53,16 @@ export interface UseQuizReturn {
   currentIndex: number;
   /** Total active questions (base + any injected brand-size questions) */
   totalQuestions: number;
+  /** Full ordered list of active questions (including injected brand-size questions) */
+  activeQuestions: QuizQuestion[];
   /** All answers keyed by question id */
   answers: Record<string, QuizAnswer>;
   /** Advance to the next question (no-op if validation fails) */
   next: () => void;
   /** Go back one question (no-op on first question) */
   previous: () => void;
+  /** Jump directly to any question by index (used by the review screen edit flow) */
+  jumpToIndex: (index: number) => void;
   /** Record an answer for any question by id */
   setAnswer: (questionId: string, value: string | string[]) => void;
   /** Mark weight as skipped and advance */
@@ -160,6 +164,13 @@ export function useQuiz(): UseQuizReturn {
     setCurrentIndex((i) => Math.min(i + 1, activeQuestions.length - 1));
   }, [currentQuestion, activeQuestions.length]);
 
+  const jumpToIndex = useCallback(
+    (index: number) => {
+      setCurrentIndex(Math.max(0, Math.min(index, activeQuestions.length - 1)));
+    },
+    [activeQuestions.length]
+  );
+
   const resetQuiz = useCallback(() => {
     setAnswers({});
     setCurrentIndex(0);
@@ -190,9 +201,11 @@ export function useQuiz(): UseQuizReturn {
     currentQuestion,
     currentIndex,
     totalQuestions: activeQuestions.length,
+    activeQuestions,
     answers,
     next,
     previous,
+    jumpToIndex,
     setAnswer,
     skipCurrentQuestion,
     resetQuiz,
