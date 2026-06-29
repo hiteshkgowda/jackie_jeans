@@ -75,6 +75,11 @@ export default function ManualPage() {
   const [direction, setDirection] = useState(1);
   const [showError, setShowError] = useState(false);
 
+  // When the user edits a question from the Review Screen this is true.
+  // handleNext returns directly to review instead of advancing to the next question.
+  // Reset to false as soon as the user returns to review.
+  const [isEditingReview, setIsEditingReview] = useState(false);
+
   // "✓ Saved" badge — appears briefly after the user records an answer
   const [showSaved, setShowSaved] = useState(false);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -115,13 +120,22 @@ export default function ManualPage() {
       return;
     }
     setShowError(false);
+
+    // Edit-review mode: return directly to the review screen after saving.
+    // Do NOT advance to the next quiz question.
+    if (isEditingReview) {
+      setIsEditingReview(false);
+      setMode("review");
+      return;
+    }
+
     if (currentIndex === totalQuestions - 1) {
       setMode("review");
       return;
     }
     setDirection(1);
     next();
-  }, [validateCurrentQuestion, currentIndex, totalQuestions, next]);
+  }, [validateCurrentQuestion, currentIndex, totalQuestions, next, isEditingReview]);
 
   const handlePrevious = useCallback(() => {
     if (mode === "review") {
@@ -159,10 +173,20 @@ export default function ManualPage() {
     (index: number) => {
       jumpToIndex(index);
       setDirection(0);
+      setIsEditingReview(true); // arm the "return to review on save" behaviour
       setMode("quiz");
     },
     [jumpToIndex]
   );
+
+  // Skipping in edit-review mode should also return to review immediately.
+  const handleSkip = useCallback(() => {
+    skipCurrentQuestion();
+    if (isEditingReview) {
+      setIsEditingReview(false);
+      setMode("review");
+    }
+  }, [skipCurrentQuestion, isEditingReview]);
 
   const handleConfirm = useCallback(() => {
     router.push("/summary");
@@ -301,7 +325,7 @@ export default function ManualPage() {
           {/* Skip (weight only) */}
           {currentQuestion.skippable && (
             <SecondaryButton
-              onClick={skipCurrentQuestion}
+              onClick={handleSkip}
               size="md"
               className="shrink-0"
               aria-label="Skip this question"
@@ -311,15 +335,27 @@ export default function ManualPage() {
             </SecondaryButton>
           )}
 
-          {/* Next / Review */}
+          {/* Next / Save / Review */}
           <PrimaryButton
             onClick={handleNext}
             size="md"
             fullWidth
-            aria-label={isLastQuestion ? "Review all answers" : "Next question"}
+            aria-label={
+              isEditingReview
+                ? "Save answer and return to review"
+                : isLastQuestion
+                ? "Review all answers"
+                : "Next question"
+            }
           >
-            {isLastQuestion ? "Review & submit" : "Next"}
-            {!isLastQuestion && <ArrowRight size={16} strokeWidth={2.5} aria-hidden="true" />}
+            {isEditingReview
+              ? "Save"
+              : isLastQuestion
+              ? "Review & submit"
+              : "Next"}
+            {!isEditingReview && !isLastQuestion && (
+              <ArrowRight size={16} strokeWidth={2.5} aria-hidden="true" />
+            )}
           </PrimaryButton>
         </div>
       </main>
