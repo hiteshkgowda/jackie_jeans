@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Mic, MicOff, RotateCcw, X, AlertTriangle } from "lucide-react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { Mic, MicOff, RotateCcw, X, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useQuiz } from "@/hooks/useQuiz";
 import { useVoiceController } from "@/voice/VoiceController";
 import { Header, ProgressBar, PrimaryButton, SecondaryButton, Card } from "@/components/ui";
@@ -12,72 +12,131 @@ import type { TranscriptEntry } from "@/voice/VoiceState";
 import { cn } from "@/lib/utils";
 
 // ─── Voice Orb ────────────────────────────────────────────────────────────────
+//
+// Each phase gets a distinct micro-animation so users can glance and know
+// exactly what the assistant is doing.
+//
+//   idle        — very slow gentle breathing
+//   speaking /
+//   greeting /
+//   confirming  — slow outward breathing ring
+//   listening   — 3 expanding ripple rings + faster core pulse
+//   processing  — spinning arc around the orb
+//   error       — amber pulsing ring
+//   completed   — deep green core + checkmark icon
+
+function orbAriaLabel(phase: VoicePhase): string {
+  switch (phase) {
+    case "idle":          return "Voice stylist ready";
+    case "greeting":      return "Voice stylist speaking greeting";
+    case "speaking":      return "Voice stylist asking a question";
+    case "listening":     return "Voice stylist listening for your answer";
+    case "processing":    return "Voice stylist processing your answer";
+    case "confirming":    return "Voice stylist confirming your answer";
+    case "error":         return "Voice stylist retrying";
+    case "manualFallback":return "Switched to manual input";
+    case "completed":     return "Fit quiz complete";
+  }
+}
 
 function VoiceOrb({ phase }: { phase: VoicePhase }) {
-  const isActive = phase !== "idle" && phase !== "completed";
+  const prefersReduced = useReducedMotion() ?? false;
+
+  const isActive    = phase !== "idle" && phase !== "completed";
   const isListening = phase === "listening";
-  const isSpeaking = phase === "speaking" || phase === "greeting";
+  const isSpeaking  = phase === "speaking" || phase === "greeting" || phase === "confirming";
+  const isProcessing= phase === "processing";
+  const isError     = phase === "error";
+  const isCompleted = phase === "completed";
+
+  const coreColor = isListening ? "#355C7D"     // denim — the orb "opens its ear"
+    : isSpeaking ? "#181614"                    // near-black — clear authoritative voice
+    : isCompleted ? "#14532d"                   // deep green success
+    : "#E8E3DC";                                // warm border grey when inactive
 
   return (
-    <div className="relative flex items-center justify-center w-28 h-28 mx-auto">
-      {/* Ripple rings */}
-      {isListening && (
-        <>
-          {[0, 1, 2].map((i) => (
-            <motion.div
-              key={i}
-              className="absolute inset-0 rounded-full border-2 border-stone-900/30"
-              animate={{ scale: [1, 1.8], opacity: [0.6, 0] }}
-              transition={{
-                duration: 1.6,
-                delay: i * 0.5,
-                repeat: Infinity,
-                ease: "easeOut",
-              }}
-            />
-          ))}
-        </>
+    <div
+      className="relative flex items-center justify-center w-28 h-28 mx-auto"
+      role="img"
+      aria-label={orbAriaLabel(phase)}
+    >
+      {/* Idle: very gentle breathing background */}
+      {phase === "idle" && !prefersReduced && (
+        <motion.div
+          className="absolute inset-0 rounded-full bg-brand-border"
+          animate={{ scale: [1, 1.04, 1] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+        />
       )}
 
-      {/* Slow pulse ring when speaking */}
-      {isSpeaking && (
+      {/* Speaking / confirming: slow outward breathing ring */}
+      {isSpeaking && !prefersReduced && (
         <motion.div
-          className="absolute inset-0 rounded-full bg-stone-900/10"
-          animate={{ scale: [1, 1.15, 1] }}
-          transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute inset-0 rounded-full bg-brand-text/6"
+          animate={{ scale: [1, 1.14, 1] }}
+          transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+        />
+      )}
+
+      {/* Listening: 3 expanding denim-blue ripple rings */}
+      {isListening && !prefersReduced && [0, 1, 2].map((i) => (
+        <motion.div
+          key={i}
+          className="absolute inset-0 rounded-full border-2 border-brand-denim/30"
+          animate={{ scale: [1, 1.8], opacity: [0.6, 0] }}
+          transition={{ duration: 1.6, delay: i * 0.5, repeat: Infinity, ease: "easeOut" }}
+        />
+      ))}
+
+      {/* Processing: denim spinning arc */}
+      {isProcessing && !prefersReduced && (
+        <motion.div
+          className="absolute w-24 h-24 rounded-full border-[3px] border-brand-border"
+          style={{ borderTopColor: "#355C7D" }}
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1.1, repeat: Infinity, ease: "linear" }}
+        />
+      )}
+
+      {/* Error: amber pulsing ring */}
+      {isError && !prefersReduced && (
+        <motion.div
+          className="absolute inset-0 rounded-full border-2 border-amber-400/50"
+          animate={{ opacity: [0.8, 0.2, 0.8], scale: [1, 1.06, 1] }}
+          transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
         />
       )}
 
       {/* Core orb */}
       <motion.div
         animate={{
-          scale: isListening ? [1, 1.06, 1] : isSpeaking ? [1, 1.04, 1] : 1,
-          backgroundColor: isListening
-            ? "#1c1917"
-            : isSpeaking
-            ? "#292524"
-            : "#e7e5e4",
+          scale:
+            isListening && !prefersReduced ? [1, 1.06, 1]
+            : isSpeaking && !prefersReduced ? [1, 1.03, 1]
+            : 1,
+          backgroundColor: coreColor,
         }}
         transition={{
-          scale: { duration: 0.8, repeat: isActive ? Infinity : 0, ease: "easeInOut" },
-          backgroundColor: { duration: 0.3 },
+          scale: {
+            duration: isListening ? 0.85 : 2.2,
+            repeat: isActive && !prefersReduced ? Infinity : 0,
+            ease: "easeInOut",
+          },
+          backgroundColor: { duration: 0.35 },
         }}
         className="w-20 h-20 rounded-full flex items-center justify-center shadow-lg shadow-stone-900/20"
       >
-        <motion.div
-          animate={{ opacity: isActive ? 1 : 0.5 }}
-          transition={{ duration: 0.3 }}
-        >
-          {isListening ? (
-            <Mic size={28} className="text-white" strokeWidth={1.5} />
-          ) : (
-            <MicOff
-              size={28}
-              className={isActive ? "text-white" : "text-stone-400"}
-              strokeWidth={1.5}
-            />
-          )}
-        </motion.div>
+        {isListening ? (
+          <Mic size={28} className="text-white" strokeWidth={1.5} />
+        ) : isCompleted ? (
+          <CheckCircle2 size={28} className="text-emerald-300" strokeWidth={1.5} />
+        ) : (
+          <MicOff
+            size={28}
+            className={isActive ? "text-white" : "text-stone-400"}
+            strokeWidth={1.5}
+          />
+        )}
       </motion.div>
     </div>
   );
@@ -87,15 +146,15 @@ function VoiceOrb({ phase }: { phase: VoicePhase }) {
 
 function phaseLabel(phase: VoicePhase): string {
   switch (phase) {
-    case "idle": return "Ready";
-    case "greeting": return "Speaking…";
-    case "speaking": return "Speaking…";
-    case "listening": return "Listening…";
-    case "processing": return "Processing…";
-    case "confirming": return "Got it…";
-    case "error": return "Retrying…";
-    case "manualFallback": return "Manual input";
-    case "completed": return "Done!";
+    case "idle":          return "Ready";
+    case "greeting":      return "Speaking…";
+    case "speaking":      return "Speaking…";
+    case "listening":     return "Listening…";
+    case "processing":    return "Processing…";
+    case "confirming":    return "Got it…";
+    case "error":         return "Retrying…";
+    case "manualFallback":return "Manual input";
+    case "completed":     return "Done!";
   }
 }
 
@@ -162,9 +221,23 @@ export default function VoicePage() {
   const progress = getProgress();
   const isActive = phase !== "idle" && phase !== "completed";
 
+  // Escape key cancels an active conversation
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && isActive) cancel();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isActive, cancel]);
+
+  // Soft Chrome recommendation — shown when speech is supported but not Chrome-based
+  const isChromeBased =
+    typeof navigator !== "undefined" && /Chrome\//.test(navigator.userAgent);
+  const showChromeSuggestion = isSupported && !isChromeBased;
+
   if (!isHydrated) {
     return (
-      <div className="min-h-screen bg-stone-50 flex flex-col">
+      <div className="min-h-screen bg-brand-bg flex flex-col">
         <Header title="AI Voice Stylist" showBack backHref="/" />
         <main className="flex-1 flex items-center justify-center">
           <div className="w-20 h-20 rounded-full bg-stone-100 animate-pulse" />
@@ -174,11 +247,19 @@ export default function VoicePage() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 flex flex-col">
+    <div className="min-h-screen bg-brand-bg flex flex-col">
       <Header title="AI Voice Stylist" showBack backHref="/" />
 
-      <main className="flex-1 flex flex-col max-w-md mx-auto w-full px-5 pt-5 pb-8 gap-4">
+      {/* ARIA live region — announces phase changes to screen readers */}
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {phaseLabel(phase)}
+        {liveText ? `: ${liveText}` : ""}
+      </div>
 
+      <main
+        role="main"
+        className="flex-1 flex flex-col max-w-md mx-auto w-full px-5 pt-5 pb-8 gap-4"
+      >
         {/* Progress bar */}
         {isActive && (
           <motion.div
@@ -186,8 +267,15 @@ export default function VoicePage() {
             animate={{ opacity: 1 }}
             className="flex items-center gap-3"
           >
-            <ProgressBar value={progress} className="flex-1" />
-            <span className="text-xs font-semibold text-stone-400 shrink-0 tabular-nums">
+            <ProgressBar
+              value={progress}
+              className="flex-1"
+              ariaLabel={`Question ${currentIndex + 1} of ${totalQuestions}`}
+            />
+            <span
+              className="text-xs font-semibold text-stone-400 shrink-0 tabular-nums"
+              aria-hidden="true"
+            >
               {currentIndex + 1} / {totalQuestions}
             </span>
           </motion.div>
@@ -202,20 +290,22 @@ export default function VoicePage() {
             key={phase}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="text-center text-xs font-semibold text-stone-400 tracking-widest uppercase mt-3"
+            className="text-center text-xs font-semibold text-brand-faint tracking-widest uppercase mt-3"
+            aria-hidden="true"
           >
             {phaseLabel(phase)}
           </motion.p>
         </div>
 
-        {/* Browser not supported warning */}
+        {/* Browser not supported — hard warning */}
         {!isSupported && (
           <Card padding="sm" className="border-amber-200 bg-amber-50">
             <div className="flex items-start gap-3">
-              <AlertTriangle size={16} className="text-amber-500 mt-0.5 shrink-0" />
+              <AlertTriangle size={16} className="text-amber-500 mt-0.5 shrink-0" aria-hidden="true" />
               <p className="text-xs text-amber-700 leading-relaxed">
-                Speech recognition is not supported in this browser. Please use
-                Chrome on desktop or Android for the best experience.
+                Speech recognition isn&apos;t supported in this browser. Please
+                use <strong>Google Chrome</strong> on desktop or Android for the
+                voice experience.
               </p>
             </div>
           </Card>
@@ -227,7 +317,7 @@ export default function VoicePage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="text-center flex flex-col gap-2"
+            className="text-center flex flex-col gap-3"
           >
             <h2 className="text-xl font-bold tracking-tight text-stone-900">
               Talk to your stylist
@@ -236,6 +326,22 @@ export default function VoicePage() {
               Answer every question by speaking naturally. Your AI stylist will
               guide you through the whole fit quiz.
             </p>
+
+            {/* Soft Chrome recommendation — non-blocking */}
+            {showChromeSuggestion && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                className="flex items-start gap-2 text-left bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 max-w-xs mx-auto w-full"
+              >
+                <AlertTriangle size={13} className="text-blue-400 mt-0.5 shrink-0" aria-hidden="true" />
+                <p className="text-xs text-blue-600 leading-relaxed">
+                  For the best voice experience, we recommend{" "}
+                  <span className="font-semibold">Google Chrome</span> on
+                  desktop.
+                </p>
+              </motion.div>
+            )}
           </motion.div>
         )}
 
@@ -250,7 +356,7 @@ export default function VoicePage() {
               transition={{ duration: 0.25 }}
               className="text-center px-4"
             >
-              <p className="text-base font-medium text-stone-700 leading-snug">
+              <p className="text-base font-medium text-brand-text leading-snug">
                 {currentMessage}
               </p>
             </motion.div>
@@ -303,7 +409,9 @@ export default function VoicePage() {
                 onClick={handleManualContinue}
                 fullWidth
                 size="md"
+                aria-label="Save this answer and continue with voice"
               >
+                <Mic size={15} strokeWidth={2} aria-hidden="true" />
                 Continue with voice
               </PrimaryButton>
             </motion.div>
@@ -346,9 +454,9 @@ export default function VoicePage() {
                 onClick={cancel}
                 size="md"
                 fullWidth
-                aria-label="Cancel conversation"
+                aria-label="Cancel conversation (Escape)"
               >
-                <X size={15} strokeWidth={2.5} />
+                <X size={15} strokeWidth={2.5} aria-hidden="true" />
                 Cancel
               </SecondaryButton>
             </>

@@ -64,7 +64,30 @@ export interface QuizState {
 
 // ─── Output profile ───────────────────────────────────────────────────────────
 
+export interface FitProfileMeasurements {
+  height: string | null;
+  weight: string | null;
+  waist: string | null;
+  hip: string | null;
+}
+
+export interface FitProfilePreferences {
+  waistFit: string | null;
+  rise: string | null;
+  thighFit: string | null;
+}
+
+export interface FitProfileBrand {
+  brandId: string;
+  brandLabel: string;
+  size: string;
+}
+
 export interface FitProfile {
-  answers: Record<string, QuizAnswer>;
-  completedAt?: string;
+  measurements: FitProfileMeasurements;
+  preferences: FitProfilePreferences;
+  brands: FitProfileBrand[];
+  fitChallenge: string | null;
+  confidenceScore: number;
+  completedAt: string;
 }

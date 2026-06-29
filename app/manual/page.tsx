@@ -1,42 +1,28 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, SkipForward } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { ArrowLeft, ArrowRight, Check, SkipForward } from "lucide-react";
 import { useQuiz } from "@/hooks/useQuiz";
 import { Header, ProgressBar, PrimaryButton, SecondaryButton } from "@/components/ui";
 import { QuestionRenderer, ReviewScreen } from "@/components/quiz";
 
 type QuizMode = "quiz" | "review";
 
-// ─── Slide transition variants ────────────────────────────────────────────────
-
-const slideVariants = {
-  enter: (d: number) => ({
-    x: d === 0 ? 0 : d > 0 ? 40 : -40,
-    opacity: 0,
-  }),
-  center: { x: 0, opacity: 1 },
-  exit: (d: number) => ({
-    x: d === 0 ? 0 : d > 0 ? -40 : 40,
-    opacity: 0,
-  }),
-};
-
-// ─── Loading skeleton ────────────────────────────────────────────────────────
+// ─── Loading skeleton ─────────────────────────────────────────────────────────
 
 function QuizSkeleton() {
   return (
-    <div className="min-h-screen bg-stone-50 flex flex-col">
+    <div className="min-h-screen bg-brand-bg flex flex-col">
       <Header title="Fit Quiz" showBack backHref="/" />
       <main className="flex-1 flex flex-col max-w-md mx-auto w-full px-5 pt-5 pb-6 gap-5">
-        <div className="h-1.5 w-full rounded-full bg-stone-100 animate-pulse" />
-        <div className="h-8 w-3/4 rounded-xl bg-stone-100 animate-pulse mt-2" />
-        <div className="h-4 w-full rounded-lg bg-stone-100/70 animate-pulse" />
+        <div className="h-1.5 w-full rounded-full bg-brand-border animate-pulse" />
+        <div className="h-8 w-3/4 rounded-xl bg-brand-border animate-pulse mt-2" />
+        <div className="h-4 w-full rounded-lg bg-brand-border/70 animate-pulse" />
         <div className="flex flex-col gap-2 mt-2">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-14 rounded-2xl bg-stone-100 animate-pulse" />
+            <div key={i} className="h-14 rounded-2xl bg-brand-border animate-pulse" />
           ))}
         </div>
       </main>
@@ -44,7 +30,7 @@ function QuizSkeleton() {
   );
 }
 
-// ─── Page ────────────────────────────────────────────────────────────────────
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ManualPage() {
   const router = useRouter();
@@ -66,9 +52,53 @@ export default function ManualPage() {
     isHydrated,
   } = useQuiz();
 
+  const prefersReduced = useReducedMotion() ?? false;
+
+  // Slide variants respect reduced-motion preference.
+  // forward (d>0): slide left; back (d<0): slide right; jump (d=0): fade only.
+  const slideVariants = useMemo(
+    () => ({
+      enter: (d: number) => ({
+        x: prefersReduced ? 0 : d === 0 ? 0 : d > 0 ? 40 : -40,
+        opacity: 0,
+      }),
+      center: { x: 0, opacity: 1 },
+      exit: (d: number) => ({
+        x: prefersReduced ? 0 : d === 0 ? 0 : d > 0 ? -40 : 40,
+        opacity: 0,
+      }),
+    }),
+    [prefersReduced]
+  );
+
   const [mode, setMode] = useState<QuizMode>("quiz");
   const [direction, setDirection] = useState(1);
   const [showError, setShowError] = useState(false);
+
+  // "✓ Saved" badge — appears briefly after the user records an answer
+  const [showSaved, setShowSaved] = useState(false);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Wrap setAnswer to show the "✓ Saved" badge on every successful store
+  const setAnswerAndNotify = useCallback(
+    (questionId: string, value: string | string[]) => {
+      setAnswer(questionId, value);
+      clearTimeout(savedTimerRef.current);
+      setShowSaved(true);
+      savedTimerRef.current = setTimeout(() => setShowSaved(false), 1500);
+    },
+    [setAnswer]
+  );
+
+  // Estimated time: ~30 s per remaining question (2 questions per minute)
+  const remainingQ = totalQuestions - currentIndex - 1;
+  const minsLeft = Math.ceil(remainingQ * 0.5);
+  const timeLabel =
+    remainingQ <= 0
+      ? "Almost done!"
+      : minsLeft <= 1
+      ? "< 1 min left"
+      : `≈ ${minsLeft} min left`;
 
   // Reset inline error whenever the current question's answer changes
   const currentAnswer = answers[currentQuestion?.id];
@@ -153,7 +183,7 @@ export default function ManualPage() {
 
   if (mode === "review") {
     return (
-      <div className="min-h-screen bg-stone-50 flex flex-col">
+      <div className="min-h-screen bg-brand-bg flex flex-col">
         <Header title="Review" showBack />
         <ReviewScreen
           activeQuestions={activeQuestions}
@@ -173,17 +203,59 @@ export default function ManualPage() {
   const validationError = showError ? validateCurrentQuestion().error : undefined;
 
   return (
-    <div className="min-h-screen bg-stone-50 flex flex-col">
+    <div className="min-h-screen bg-brand-bg flex flex-col">
       <Header title="Fit Quiz" showBack backHref="/" />
 
-      <main className="flex-1 flex flex-col max-w-md mx-auto w-full px-5 pt-5 pb-6">
+      {/* ARIA live region — announces saved state to screen readers */}
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {showSaved ? "Answer saved" : ""}
+      </div>
 
-        {/* Progress bar + counter */}
-        <div className="flex items-center gap-3 mb-6">
-          <ProgressBar value={progress} className="flex-1" />
-          <span className="text-xs font-semibold text-stone-400 shrink-0 tabular-nums">
-            {currentIndex + 1} / {totalQuestions}
-          </span>
+      <main
+        role="main"
+        className="flex-1 flex flex-col max-w-md mx-auto w-full px-5 pt-5 pb-6"
+      >
+
+        {/* Progress section: "Question X of Y" + time-remaining / ✓ Saved */}
+        <div className="flex flex-col gap-1.5 mb-6">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-brand-muted tabular-nums">
+              Question {currentIndex + 1} of {totalQuestions}
+            </span>
+
+            <AnimatePresence mode="wait">
+              {showSaved ? (
+                <motion.span
+                  key="saved"
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.18 }}
+                  className="flex items-center gap-1 text-xs font-semibold text-brand-success"
+                  aria-hidden="true"
+                >
+                  <Check size={11} strokeWidth={3} />
+                  Saved
+                </motion.span>
+              ) : (
+                <motion.span
+                  key="time"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="text-xs text-brand-faint"
+                >
+                  {timeLabel}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <ProgressBar
+            value={progress}
+            ariaLabel={`Question ${currentIndex + 1} of ${totalQuestions}`}
+          />
         </div>
 
         {/* Animated question area */}
@@ -196,13 +268,16 @@ export default function ManualPage() {
               initial="enter"
               animate="center"
               exit="exit"
-              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
+              transition={{
+                duration: prefersReduced ? 0.1 : 0.22,
+                ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+              }}
               className="h-full"
             >
               <QuestionRenderer
                 question={currentQuestion}
                 answer={answers[currentQuestion.id]}
-                onAnswer={setAnswer}
+                onAnswer={setAnswerAndNotify}
                 onAutoAdvance={handleAutoAdvance}
                 error={validationError}
               />
@@ -218,9 +293,9 @@ export default function ManualPage() {
             disabled={!canGoPrevious}
             size="md"
             className="w-12 px-0 shrink-0"
-            aria-label="Go back"
+            aria-label="Previous question"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={16} aria-hidden="true" />
           </SecondaryButton>
 
           {/* Skip (weight only) */}
@@ -229,8 +304,9 @@ export default function ManualPage() {
               onClick={skipCurrentQuestion}
               size="md"
               className="shrink-0"
+              aria-label="Skip this question"
             >
-              <SkipForward size={14} strokeWidth={2.5} />
+              <SkipForward size={14} strokeWidth={2.5} aria-hidden="true" />
               Skip
             </SecondaryButton>
           )}
@@ -240,9 +316,10 @@ export default function ManualPage() {
             onClick={handleNext}
             size="md"
             fullWidth
+            aria-label={isLastQuestion ? "Review all answers" : "Next question"}
           >
-            {isLastQuestion ? "Review answers" : "Next"}
-            {!isLastQuestion && <ArrowRight size={16} strokeWidth={2.5} />}
+            {isLastQuestion ? "Review & submit" : "Next"}
+            {!isLastQuestion && <ArrowRight size={16} strokeWidth={2.5} aria-hidden="true" />}
           </PrimaryButton>
         </div>
       </main>

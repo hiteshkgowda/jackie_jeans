@@ -12,7 +12,6 @@ interface QuestionRendererProps {
   question: QuizQuestion;
   answer: QuizAnswer | undefined;
   onAnswer: (questionId: string, value: string | string[]) => void;
-  /** Called after a brief delay for single-choice questions (auto-advance) */
   onAutoAdvance?: () => void;
   error?: string;
 }
@@ -29,15 +28,15 @@ function QuestionHeader({
   return (
     <div className="mb-6">
       {badge && (
-        <span className="inline-block text-[11px] font-semibold tracking-wider uppercase text-stone-400 mb-3">
+        <span className="inline-block text-[11px] font-semibold tracking-wider uppercase text-brand-denim mb-3">
           {badge}
         </span>
       )}
-      <h2 className="text-2xl font-bold tracking-tight text-stone-900 leading-tight mb-2">
+      <h2 className="text-2xl font-bold tracking-tight text-brand-text leading-tight mb-2">
         {question.question}
       </h2>
       {question.description && (
-        <p className="text-sm text-stone-500 leading-relaxed">
+        <p className="text-sm text-brand-muted leading-relaxed">
           {question.description}
         </p>
       )}
@@ -80,7 +79,6 @@ function DropdownInput({
   const selectedRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    // Scroll selected item into view after mount
     selectedRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
     return () => clearTimeout(timerRef.current);
   }, []);
@@ -101,19 +99,21 @@ function DropdownInput({
           {options.map((opt) => {
             const selected = value === opt.value;
             return (
-              <button
+              <motion.button
                 key={opt.id}
                 ref={selected ? selectedRef : undefined}
                 onClick={() => handleSelect(opt.value)}
+                whileTap={{ scale: 0.96 }}
+                transition={{ type: "spring", stiffness: 400, damping: 20 }}
                 className={cn(
                   "py-3 px-2 rounded-2xl text-sm font-semibold border transition-all duration-150 text-center",
                   selected
-                    ? "bg-stone-900 text-white border-stone-900 shadow-md shadow-stone-900/20"
-                    : "bg-white text-stone-700 border-stone-200 hover:border-stone-400 hover:bg-stone-50"
+                    ? "bg-brand-denim text-white border-brand-denim shadow-[0_2px_8px_rgba(53,92,125,0.35)]"
+                    : "bg-brand-surface text-brand-text border-brand-border hover:border-brand-denim/50 hover:bg-brand-denim-light hover:text-brand-denim"
                 )}
               >
                 {opt.label}
-              </button>
+              </motion.button>
             );
           })}
         </div>
@@ -138,7 +138,6 @@ function NumberInput({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Short delay lets the entrance animation settle before stealing focus
     const t = setTimeout(() => inputRef.current?.focus(), 120);
     return () => clearTimeout(t);
   }, []);
@@ -157,16 +156,16 @@ function NumberInput({
           onChange={(e) => onChange(e.target.value)}
           placeholder={question.placeholder ?? ""}
           className={cn(
-            "flex-1 rounded-2xl border px-5 py-4 text-2xl font-semibold text-stone-900",
-            "bg-stone-50 placeholder:text-stone-300 outline-none",
-            "transition-all duration-200 focus:bg-white focus:ring-2 focus:ring-stone-900/10",
+            "flex-1 rounded-2xl border px-5 py-4 text-2xl font-semibold text-brand-text",
+            "bg-brand-bg placeholder:text-brand-faint outline-none",
+            "transition-all duration-200 focus:bg-brand-surface focus:ring-2 focus:ring-brand-denim/20",
             error
               ? "border-red-300 focus:border-red-400"
-              : "border-stone-200 focus:border-stone-400"
+              : "border-brand-border focus:border-brand-denim/60"
           )}
         />
         {question.inputUnit && (
-          <span className="text-base font-semibold text-stone-400 shrink-0">
+          <span className="text-base font-semibold text-brand-faint shrink-0">
             {question.inputUnit}
           </span>
         )}
@@ -193,7 +192,9 @@ function SingleSelect({
 }) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const hasOtherOption = question.options?.some((o) => o.value === "other") ?? false;
-  const isOtherSelected = value === "other" || (hasOtherOption && !!value && !question.options?.some((o) => o.value === value));
+  const isOtherSelected =
+    value === "other" ||
+    (hasOtherOption && !!value && !question.options?.some((o) => o.value === value));
   const [otherText, setOtherText] = useState(() => {
     if (value && !question.options?.some((o) => o.value === value)) return value;
     return "";
@@ -201,9 +202,7 @@ function SingleSelect({
   const otherInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (isOtherSelected) {
-      setTimeout(() => otherInputRef.current?.focus(), 80);
-    }
+    if (isOtherSelected) setTimeout(() => otherInputRef.current?.focus(), 80);
   }, [isOtherSelected]);
 
   useEffect(() => () => clearTimeout(timerRef.current), []);
@@ -230,30 +229,34 @@ function SingleSelect({
         {options.map((opt) => {
           const selected = opt.value === "other" ? isOtherSelected : value === opt.value;
           return (
-            <button
+            <motion.button
               key={opt.id}
               onClick={() => handleSelect(opt.value)}
+              whileTap={{ scale: 0.985 }}
+              transition={{ type: "spring", stiffness: 400, damping: 22 }}
               className={cn(
                 "w-full text-left px-4 py-3.5 rounded-2xl border transition-all duration-150",
                 "flex items-start gap-3",
                 selected
-                  ? "bg-stone-900 border-stone-900 shadow-sm"
-                  : "bg-white border-stone-200 hover:border-stone-400 hover:bg-stone-50"
+                  ? "bg-brand-denim border-brand-denim shadow-[0_2px_10px_rgba(53,92,125,0.25)]"
+                  : "bg-brand-surface border-brand-border hover:border-brand-denim/40 hover:bg-brand-denim-light"
               )}
             >
               <span
                 className={cn(
                   "mt-0.5 w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors",
-                  selected ? "border-white bg-white" : "border-stone-300"
+                  selected ? "border-white bg-white" : "border-brand-border-strong"
                 )}
               >
-                {selected && <Check size={9} className="text-stone-900" strokeWidth={3} />}
+                {selected && (
+                  <Check size={9} className="text-brand-denim" strokeWidth={3} />
+                )}
               </span>
               <div className="flex flex-col gap-0.5">
                 <span
                   className={cn(
                     "text-sm font-semibold leading-tight",
-                    selected ? "text-white" : "text-stone-800"
+                    selected ? "text-white" : "text-brand-text"
                   )}
                 >
                   {opt.label}
@@ -262,14 +265,14 @@ function SingleSelect({
                   <span
                     className={cn(
                       "text-xs leading-relaxed",
-                      selected ? "text-stone-300" : "text-stone-400"
+                      selected ? "text-white/70" : "text-brand-muted"
                     )}
                   >
                     {opt.description}
                   </span>
                 )}
               </div>
-            </button>
+            </motion.button>
           );
         })}
       </div>
@@ -291,9 +294,9 @@ function SingleSelect({
               onChange={(e) => handleOtherText(e.target.value)}
               placeholder="Describe your frustration…"
               className={cn(
-                "w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3",
-                "text-sm text-stone-900 placeholder:text-stone-400 outline-none",
-                "focus:border-stone-400 focus:bg-white focus:ring-2 focus:ring-stone-900/10",
+                "w-full rounded-xl border border-brand-border bg-brand-bg px-4 py-3",
+                "text-sm text-brand-text placeholder:text-brand-faint outline-none",
+                "focus:border-brand-denim/60 focus:bg-brand-surface focus:ring-2 focus:ring-brand-denim/15",
                 "transition-all duration-200"
               )}
             />
@@ -329,33 +332,37 @@ function MultiSelect({
           {options.map((opt) => {
             const selected = value.includes(opt.value);
             return (
-              <button
+              <motion.button
                 key={opt.id}
                 onClick={() => onToggle(opt.value)}
+                whileTap={{ scale: 0.96 }}
+                transition={{ type: "spring", stiffness: 400, damping: 20 }}
                 className={cn(
                   "px-3 py-3 rounded-2xl border text-sm font-medium transition-all duration-150",
                   "flex items-center gap-2 text-left",
                   selected
-                    ? "bg-stone-900 text-white border-stone-900 shadow-sm"
-                    : "bg-white text-stone-700 border-stone-200 hover:border-stone-400 hover:bg-stone-50"
+                    ? "bg-brand-denim text-white border-brand-denim shadow-[0_2px_8px_rgba(53,92,125,0.3)]"
+                    : "bg-brand-surface text-brand-text border-brand-border hover:border-brand-denim/40 hover:bg-brand-denim-light hover:text-brand-denim"
                 )}
               >
                 <span
                   className={cn(
                     "w-4 h-4 rounded shrink-0 border-2 flex items-center justify-center transition-colors",
-                    selected ? "border-white bg-white" : "border-stone-300"
+                    selected ? "border-white bg-white" : "border-brand-border-strong"
                   )}
                 >
-                  {selected && <Check size={9} className="text-stone-900" strokeWidth={3} />}
+                  {selected && (
+                    <Check size={9} className="text-brand-denim" strokeWidth={3} />
+                  )}
                 </span>
                 <span className="leading-tight">{opt.label}</span>
-              </button>
+              </motion.button>
             );
           })}
         </div>
       </div>
       {value.length > 0 && (
-        <p className="mt-3 text-xs text-stone-400 font-medium text-center">
+        <p className="mt-3 text-xs text-brand-denim font-semibold text-center">
           {value.length} brand{value.length !== 1 ? "s" : ""} selected
         </p>
       )}
@@ -397,18 +404,20 @@ function BrandSizeInput({
         {options.map((opt) => {
           const selected = value === opt.value;
           return (
-            <button
+            <motion.button
               key={opt.id}
               onClick={() => handleSelect(opt.value)}
+              whileTap={{ scale: 0.96 }}
+              transition={{ type: "spring", stiffness: 400, damping: 20 }}
               className={cn(
                 "py-3 rounded-2xl text-sm font-semibold border transition-all duration-150 text-center",
                 selected
-                  ? "bg-stone-900 text-white border-stone-900 shadow-md shadow-stone-900/20"
-                  : "bg-white text-stone-700 border-stone-200 hover:border-stone-400 hover:bg-stone-50"
+                  ? "bg-brand-denim text-white border-brand-denim shadow-[0_2px_8px_rgba(53,92,125,0.35)]"
+                  : "bg-brand-surface text-brand-text border-brand-border hover:border-brand-denim/50 hover:bg-brand-denim-light hover:text-brand-denim"
               )}
             >
               {opt.label}
-            </button>
+            </motion.button>
           );
         })}
       </div>
